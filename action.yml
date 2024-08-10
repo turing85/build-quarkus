@@ -1,0 +1,116 @@
+name: Build and Test (JVM)
+
+description: |
+  An action to build and test a Quarkus application in JVM Mode
+
+inputs:
+  graalvm-distribution:
+    description: The GraalVM Distribution to use
+    default: mandrel
+    required: true
+  graalvm-version:
+    description: The version of the GraalVM Distribution to used.
+    default: mandrel-23.1.2.0-Final
+    required: true
+  java-version:
+    description: The Java version of the GraalVM Distribution.
+    default: '21'
+    required: true
+  additional-maven-opts:
+    description: Additional options passed to the maven command
+    required: false
+  maven-targets:
+    description: The maven target(s) to execute.
+    default: verify
+    required: true
+  is-native:
+    description: |
+      Whether this build is a native build.
+      
+      This determines which artifacts are created by this build.
+    default: 'false'
+    required: true
+  test-report-name:
+    description: The name for the test report artifact.
+    default: test-report-jvm
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Git checkout
+      uses: actions/checkout@v4
+
+    - name: Set up ${{ inputs.graalvm-distribution}} ${{ inputs.graalvm-version }} (Java ${{ inputs.java-version }})
+      uses: graalvm/setup-graalvm@v1
+      with:
+        cache: 'maven'
+        distribution: ${{ inputs.graalvm-distribution}}
+        java-version: ${{ inputs.java-version }}
+        version: ${{ inputs.graalvm-version }}
+
+    - name: Build and Test
+      run: |
+        ./mvnw \
+          --batch-mode \
+          --color always \
+          ${{ inputs.additional-maven-opts }} \
+          ${{ inputs.maven-targets }}
+      shell: bash
+
+    - name: Upload Maven State
+      uses: actions/upload-artifact@v4
+      if: ${{ inputs.is-native != 'true' }}
+      with:
+        if-no-files-found: error
+        name: maven-state
+        path: '**/target/maven-*'
+        retention-days: 2
+
+    - name: Upload Compiled Classes
+      uses: actions/upload-artifact@v4
+      if: ${{ inputs.is-native != 'true' }}
+      with:
+        if-no-files-found: error
+        name: compiled-classes
+        path: '**/target/*classes'
+        retention-days: 2
+
+    - name: Upload JARs
+      uses: actions/upload-artifact@v4
+      if: ${{ inputs.is-native != 'true' }}
+      with:
+        if-no-files-found: error
+        name: jars
+        path: '**/target/*.jar'
+        retention-days: 2
+
+    - name: Upload Fast-JAR
+      uses: actions/upload-artifact@v4
+      if: ${{ inputs.is-native != 'true' }}
+      with:
+        if-no-files-found: error
+        name: fast-jar
+        path: 'target/quarkus-app'
+        retention-days: 2
+
+    - name: Upload executable
+      uses: actions/upload-artifact@v4
+      if: ${{ inputs.is-native == 'true' }}
+      with:
+        if-no-files-found: error
+        name: executable
+        path: |
+          target/*-runner
+          target/*.so
+        retention-days: 2
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: ${{ always() }}
+      with:
+        if-no-files-found: error
+        name: ${{ inputs.test-report-name }}
+        path: '**/target/**/TEST*.xml'
+        retention-days: 2

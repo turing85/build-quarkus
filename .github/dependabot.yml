@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    ignore:
+      - dependency-name: actions/download-artifact
+        versions: ">= 4"
+      - dependency-name: actions/upload-artifact
+        versions: ">= 4"
+    labels:
+      - "dependencies"
